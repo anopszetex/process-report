@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "aaron-bond.better-comments",
+    "adpyke.codesnap",
+    "editorconfig.editorconfig",
+    "dbaeumer.vscode-eslint",
+    "rickynormandeau.mariana-pro",
+    "johnpapa.vscode-peacock",
+    "esbenp.prettier-vscode"
+  ]
+}
