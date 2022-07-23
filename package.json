@@ -1,23 +1,15 @@
 {
-  "name": "@anopszetex/example-project",
+  "name": "@anopszetex/process-report",
   "version": "1.0.0",
-  "description": "enviroment customized",
+  "description": "simple test using child process",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/anopszetex/example-project.git"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/anopszetex/example-project/issues"
-  },
-  "homepage": "https://github.com/anopszetex/example-project#readme",
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^3.2.0",
     "0x": "^5.4.0",
