@@ -4,6 +4,9 @@
   "description": "simple test using child process",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">16.0.0 <17.0.0"
+  },
   "scripts": {
     "start": "node src/index.js"
   },
