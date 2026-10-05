@@ -1,31 +1,21 @@
 {
   "name": "@anopszetex/process-report",
   "version": "1.0.0",
-  "description": "simple test using child process",
+  "description": "Single-pass duplicate detection for CSV datasets using Node.js child processes",
   "main": "index.js",
   "type": "module",
   "engines": {
-    "node": ">16.0.0 <17.0.0"
+    "node": ">=22"
   },
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test",
+    "check": "node --check src/index.js && node --check src/backgroundTask.js"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@trivago/prettier-plugin-sort-imports": "^3.2.0",
-    "0x": "^4.1.4",
-    "autocannon": "^7.9.0",
-    "clinic": "^12.0.0",
-    "csvtojson": "^2.0.10",
-    "eslint": "^8.19.0",
-    "eslint-config-google": "^0.14.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-jest": "^26.6.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^6.0.0",
-    "prettier": "^2.7.1"
+  "license": "MIT",
+  "dependencies": {
+    "csvtojson": "^2.0.10"
   }
 }

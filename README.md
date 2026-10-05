@@ -1,5 +1,46 @@
 # process-report
 
+Single-pass duplicate detection for CSV datasets using Node.js streams and child processes.
+
+## Design
+
+The main process streams the CSV and hashes each record key to a stable worker partition. Records with the same key always reach the same worker. Each worker maintains its own `Set` and reports a duplicate only once.
+
+This design provides:
+
+- **O(n)** file processing instead of rescanning the dataset per record;
+- bounded streaming input with IPC backpressure;
+- deterministic partitioning;
+- parallel ownership of the in-memory index;
+- at most eight workers to avoid excessive process overhead.
+
+## Run
+
+```sh
+npm ci
+npm start
+```
+
+## Test and validate
+
+```sh
+npm run check
+npm test
+```
+
+The included dataset intentionally contains duplicate Pokémon names and is used as a reproducible example.
+
+## License
+
+[MIT](LICENSE)
+
+---
+
+<details>
+<summary><strong>🇧🇷 Ver documentação em Português (Brasil)</strong></summary>
+
+# process-report
+
 Processamento paralelo de grandes volumes de dados usando **Node.js child processes** e **streams**.
 
 O projeto lê um CSV com registros, distribui o trabalho entre vários processos filhos e identifica registros replicados no dataset.
@@ -63,3 +104,5 @@ Done in 9.06s
 ## Licença
 
 [MIT](LICENSE)
+
+</details>

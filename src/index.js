@@ -1,73 +1,64 @@
-// eslint-disable-next-line node/no-unpublished-import
 import csvtojson from 'csvtojson';
 import { fork } from 'node:child_process';
 import { createReadStream } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Writable } from 'stream';
-import { pipeline } from 'stream/promises';
+import { Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 
-(async () => {
-  const __dirname = fileURLToPath(import.meta.url);
+import { partitionFor } from './partition.js';
 
-  const database = path.resolve('./database/All_Pokemon.csv');
-  const backgroundTaskFile = path.join(__dirname, '../backgroundTask.js');
+const directory = path.dirname(fileURLToPath(import.meta.url));
+const database = path.resolve('database/All_Pokemon.csv');
+const workerFile = path.join(directory, 'backgroundTask.js');
+const workerCount = Math.min(availableParallelism(), 8);
 
-  const ERROR_EXIT_CODE = 1;
-  const PROCESS_COUNT = 30;
+function send(worker, message) {
+  return new Promise((resolve, reject) => {
+    worker.send(message, error => (error ? reject(error) : resolve()));
+  });
+}
 
-  const replications = [];
-  const processes = new Map();
+const workers = Array.from({ length: workerCount }, () => fork(workerFile));
+const completion = workers.map(
+  worker =>
+    new Promise((resolve, reject) => {
+      worker.on('message', message => {
+        if (message.type === 'duplicate') {
+          console.log(`${message.name} is duplicated`);
+        }
 
-  for (let index = 0; index < PROCESS_COUNT; index++) {
-    const child = fork(backgroundTaskFile, [database]);
-
-    child.on('exit', () => {
-      console.log(`process ${child.pid} exited`);
-      processes.delete(child.pid);
-    });
-
-    child.on('error', error => {
-      console.log(`process ${child.pid} has en error ${error}`);
-      // eslint-disable-next-line no-process-exit
-      process.exit(ERROR_EXIT_CODE);
-    });
-
-    child.on('message', msg => {
-      if (replications.includes(msg)) {
-        return;
-      }
-
-      console.log(`${msg} is replicated`);
-      replications.push(msg);
-    });
-
-    processes.set(child.pid, child);
-  }
-
-  function roundRoubin(array, index = 0) {
-    return function () {
-      if (index >= array.length) {
-        index = 0;
-      }
-
-      return array[index++];
-    };
-  }
-
-  const getProcess = roundRoubin([...processes.values()]);
-
-  console.log(`starting with ${processes.size} processes`);
-
-  await pipeline(
-    createReadStream(database),
-    csvtojson(),
-    Writable({
-      write(chunk, encoding, callback) {
-        const chosenProcess = getProcess();
-        chosenProcess.send(JSON.parse(chunk));
-        callback();
-      },
+        if (message.type === 'done') {
+          resolve();
+        }
+      });
+      worker.once('error', reject);
+      worker.once('exit', code => {
+        if (code !== 0) reject(new Error(`Worker exited with code ${code}`));
+      });
     })
-  );
-})();
+);
+
+console.log(`processing with ${workerCount} workers`);
+
+await pipeline(
+  createReadStream(database),
+  csvtojson(),
+  new Writable({
+    objectMode: true,
+    write(record, _encoding, callback) {
+      const parsedRecord = Buffer.isBuffer(record)
+        ? JSON.parse(record.toString())
+        : record;
+      const index = partitionFor(parsedRecord.Name, workerCount);
+      send(workers[index], { type: 'record', name: parsedRecord.Name }).then(
+        () => callback(),
+        callback
+      );
+    },
+  })
+);
+
+await Promise.all(workers.map(worker => send(worker, { type: 'end' })));
+await Promise.all(completion);

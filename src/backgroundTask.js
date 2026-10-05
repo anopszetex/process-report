@@ -1,48 +1,16 @@
-// eslint-disable-next-line node/no-unpublished-import
-import csvtojson from 'csvtojson';
-import { createReadStream } from 'node:fs';
-import { Transform, Writable } from 'stream';
-import { pipeline } from 'stream/promises';
+const names = new Set();
+const reported = new Set();
 
-const database = process.argv[2];
+process.on('message', message => {
+  if (message.type === 'end') {
+    process.send({ type: 'done' }, () => process.exit(0));
+    return;
+  }
 
-async function onMessage(msg) {
-  const firstTimeRan = [];
+  if (names.has(message.name) && !reported.has(message.name)) {
+    reported.add(message.name);
+    process.send({ type: 'duplicate', name: message.name });
+  }
 
-  await pipeline(
-    createReadStream(database),
-    csvtojson(),
-    Transform({
-      transform(chunk, encoding, callback) {
-        const data = JSON.parse(chunk);
-
-        if (data.Name !== msg.Name) {
-          return callback();
-        }
-
-        if (firstTimeRan.includes(data.Name)) {
-          return callback(null, msg.Name);
-        }
-
-        firstTimeRan.push(msg.Name);
-
-        return callback();
-      },
-    }),
-    Writable({
-      write(chunk, encoding, callback) {
-        if (!chunk) {
-          return callback();
-        }
-
-        process.send(chunk.toString());
-      },
-    })
-  );
-}
-
-process.on('message', onMessage);
-
-setTimeout(() => {
-  process.channel.unref();
-}, 8000);
+  names.add(message.name);
+});
