@@ -1,44 +1,5 @@
 # process-report
 
-An experiment with processing CSV records through multiple Node.js child processes.
-
-## How it works
-
-The main process reads the Pokémon CSV as a stream and distributes records among 30 child processes using round-robin scheduling.
-
-For every record it receives, a child process opens the CSV, scans it as a stream, and reports whether the Pokémon name occurs more than once. The parent process consolidates the messages and prints each duplicated name once.
-
-The project explores the use of:
-
-- `node:child_process` and `fork`;
-- IPC between parent and child processes;
-- Node.js streams and pipelines;
-- round-robin work distribution;
-- CSV processing without loading the complete file into memory.
-
-This is an experimental implementation. Multiple processes do not guarantee better performance, and this version intentionally favors a direct demonstration of child processes over an optimized duplicate-detection algorithm.
-
-## Run
-
-```sh
-npm ci
-npm start
-```
-
-Expected output includes the process count, duplicated names, and worker termination messages.
-
-## Validate syntax
-
-```sh
-npm run check
-```
-
-## License
-
-[MIT](LICENSE)
-
----
-
 <details>
 <summary><strong>🇧🇷 Ver documentação em Português (Brasil)</strong></summary>
 
@@ -82,3 +43,42 @@ npm run check
 [MIT](LICENSE)
 
 </details>
+
+---
+
+An experiment with processing CSV records through multiple Node.js child processes.
+
+## How it works
+
+The main process reads the Pokémon CSV as a stream and distributes records among 30 child processes using round-robin scheduling.
+
+For every record it receives, a child process opens the CSV, scans it as a stream, and reports whether the Pokémon name occurs more than once. The parent process consolidates the messages and prints each duplicated name once.
+
+The project explores the use of:
+
+- `node:child_process` and `fork`;
+- IPC between parent and child processes;
+- Node.js streams and pipelines;
+- round-robin work distribution;
+- CSV processing without loading the complete file into memory.
+
+This is an experimental implementation. Multiple processes do not guarantee better performance, and this version intentionally favors a direct demonstration of child processes over an optimized duplicate-detection algorithm.
+
+## Run
+
+```sh
+npm ci
+npm start
+```
+
+Expected output includes the process count, duplicated names, and worker termination messages.
+
+## Validate syntax
+
+```sh
+npm run check
+```
+
+## License
+
+[MIT](LICENSE)
