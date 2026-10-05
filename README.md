@@ -41,65 +41,35 @@ The included dataset intentionally contains duplicate Pokémon names and is used
 
 # process-report
 
-Processamento paralelo de grandes volumes de dados usando **Node.js child processes** e **streams**.
+Detecção de registros duplicados em uma única passagem por datasets CSV, usando streams e processos filhos do Node.js.
 
-O projeto lê um CSV com registros, distribui o trabalho entre vários processos filhos e identifica registros replicados no dataset.
+## Arquitetura
 
-## Problema
+O processo principal lê o CSV como stream e aplica um hash à chave de cada registro. Registros com a mesma chave sempre são enviados para o mesmo worker. Cada worker mantém seu próprio `Set` e informa uma duplicata apenas uma vez.
 
-Quando precisamos processar um arquivo grande e verificar a existência de duplicatas, fazer tudo em um único processo pode:
+O desenho oferece:
 
-- saturar o event loop;
-- consumir muita memória ao carregar o arquivo inteiro;
-- tornar o processamento lento.
+- processamento **O(n)**, sem reler o arquivo para cada registro;
+- entrada via stream e backpressure no IPC;
+- particionamento determinístico;
+- índice em memória distribuído entre processos;
+- limite de oito workers para evitar overhead excessivo.
 
-## Solução
-
-O arquivo é consumido como uma **stream** no processo principal. Cada linha é enviada para um dos processos filhos usando um algoritmo **round-robin**. Cada filho:
-
-- lê o mesmo dataset via stream;
-- verifica se o registro recebido aparece mais de uma vez;
-- reporta de volta ao processo principal quando encontra uma replicação.
-
-Isso permite usar todos os cores disponíveis sem carregar o arquivo inteiro na memória.
-
-## Tecnologias
-
-- `node:child_process` — criação e comunicação entre processos.
-- `node:stream` e `stream/promises` — processamento eficiente de grandes arquivos.
-- `csvtojson` — transformação de CSV em objetos JSON via stream.
-
-## Como rodar
-
-### Instalar dependências
+## Execução
 
 ```sh
-npm install
-```
-
-### Executar
-
-```sh
+npm ci
 npm start
 ```
 
-Você verá uma saída semelhante a:
+## Testes e validação
 
 ```sh
-starting with 30 processes
-Charmeleon is replicated
-process 21871 exited
-process 21891 exited
-...
-Done in 9.06s
+npm run check
+npm test
 ```
 
-## O que demonstra
-
-- Uso de **fork** para paralelizar trabalho CPU-bound.
-- Comunicação entre processos via **IPC** (`process.send` / `process.on('message')`).
-- Processamento de arquivos grandes com **backpressure** natural das streams.
-- Distribuição de carga com round-robin.
+O dataset incluído contém nomes de Pokémon duplicados intencionalmente para tornar o exemplo reproduzível.
 
 ## Licença
 
