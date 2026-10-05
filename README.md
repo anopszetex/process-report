@@ -1,59 +1,65 @@
 # process-report
 
-Using `child processes` with `streams` to report a massive amount of data and **check registers replicated**
+Processamento paralelo de grandes volumes de dados usando **Node.js child processes** e **streams**.
 
-## :mortar_board: Project Setup
-- [Node.js v16.17.0+](https://nodejs.org/en/download/)
-- [NPM 8.15.0+](https://docs.npmjs.com/cli/v8/commands/npm-install)
+O projeto lê um CSV com registros, distribui o trabalho entre vários processos filhos e identifica registros replicados no dataset.
 
-### Clone the repository
-```bash
-git clone git@github.com:anopszetex/process-report.git
-```
-### Build Setup
-```bash
+## Problema
+
+Quando precisamos processar um arquivo grande e verificar a existência de duplicatas, fazer tudo em um único processo pode:
+
+- saturar o event loop;
+- consumir muita memória ao carregar o arquivo inteiro;
+- tornar o processamento lento.
+
+## Solução
+
+O arquivo é consumido como uma **stream** no processo principal. Cada linha é enviada para um dos processos filhos usando um algoritmo **round-robin**. Cada filho:
+
+- lê o mesmo dataset via stream;
+- verifica se o registro recebido aparece mais de uma vez;
+- reporta de volta ao processo principal quando encontra uma replicação.
+
+Isso permite usar todos os cores disponíveis sem carregar o arquivo inteiro na memória.
+
+## Tecnologias
+
+- `node:child_process` — criação e comunicação entre processos.
+- `node:stream` e `stream/promises` — processamento eficiente de grandes arquivos.
+- `csvtojson` — transformação de CSV em objetos JSON via stream.
+
+## Como rodar
+
+### Instalar dependências
+
+```sh
 npm install
 ```
-### Compile
-```bash
+
+### Executar
+
+```sh
 npm start
 ```
 
-You should see results similar to:
+Você verá uma saída semelhante a:
+
 ```sh
-$ node src/index.js
 starting with 30 processes
 Charmeleon is replicated
 process 21871 exited
 process 21891 exited
-process 21864 exited
-process 21845 exited
-process 21852 exited
-process 21846 exited
-process 21963 exited
-process 22036 exited
-process 21857 exited
-Calyrex Shadow Rider is replicated
-process 21928 exited
-process 21883 exited
-process 22086 exited
-process 21995 exited
-process 21990 exited
-process 22033 exited
-process 21877 exited
-process 22016 exited
-process 21969 exited
-process 21979 exited
-process 22127 exited
-process 21911 exited
-process 21992 exited
-process 21898 exited
-process 21991 exited
-process 21870 exited
-process 21946 exited
-process 22013 exited
-process 22109 exited
-process 22069 exited
-process 22125 exited
-Done in 9.06s.
+...
+Done in 9.06s
 ```
+
+## O que demonstra
+
+- Uso de **fork** para paralelizar trabalho CPU-bound.
+- Comunicação entre processos via **IPC** (`process.send` / `process.on('message')`).
+- Processamento de arquivos grandes com **backpressure** natural das streams.
+- Distribuição de carga com round-robin.
+
+## Licença
+
+[MIT](LICENSE)
