@@ -1,64 +1,79 @@
-import csvtojson from 'csvtojson';
 import { fork } from 'node:child_process';
-import { createReadStream } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Writable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { performance } from 'node:perf_hooks';
 
-import { partitionFor } from './partition.js';
+import { createCsvRanges } from './ranges.js';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const database = path.resolve('database/All_Pokemon.csv');
 const workerFile = path.join(directory, 'backgroundTask.js');
-const workerCount = Math.min(availableParallelism(), 8);
+const defaultWorkerCount = Math.min(availableParallelism(), 8);
+const requestedWorkerCount = Number(process.env.WORKERS ?? defaultWorkerCount);
 
-function send(worker, message) {
+if (!Number.isInteger(requestedWorkerCount) || requestedWorkerCount < 1) {
+  throw new Error('WORKERS must be a positive integer');
+}
+
+const { header, ranges } = await createCsvRanges(
+  database,
+  requestedWorkerCount
+);
+const totals = new Map();
+const startedAt = performance.now();
+
+function merge(entries) {
+  for (const [name, count] of entries) {
+    totals.set(name, (totals.get(name) ?? 0) + count);
+  }
+}
+
+function runWorker(range) {
   return new Promise((resolve, reject) => {
-    worker.send(message, error => (error ? reject(error) : resolve()));
+    const worker = fork(workerFile, [
+      database,
+      String(range.start),
+      String(range.endExclusive),
+      Buffer.from(header).toString('base64'),
+    ]);
+    let completed = false;
+
+    worker.on('message', message => {
+      if (message.type === 'counts') {
+        merge(message.entries);
+      }
+
+      if (message.type === 'error') {
+        reject(new Error(message.error));
+      }
+
+      if (message.type === 'done') {
+        completed = true;
+        resolve(message.records);
+      }
+    });
+
+    worker.once('error', reject);
+    worker.once('exit', code => {
+      if (!completed && code !== 0) {
+        reject(new Error(`Worker exited with code ${code}`));
+      }
+    });
   });
 }
 
-const workers = Array.from({ length: workerCount }, () => fork(workerFile));
-const completion = workers.map(
-  worker =>
-    new Promise((resolve, reject) => {
-      worker.on('message', message => {
-        if (message.type === 'duplicate') {
-          console.log(`${message.name} is duplicated`);
-        }
+console.log(`reading ${ranges.length} file ranges in parallel`);
 
-        if (message.type === 'done') {
-          resolve();
-        }
-      });
-      worker.once('error', reject);
-      worker.once('exit', code => {
-        if (code !== 0) reject(new Error(`Worker exited with code ${code}`));
-      });
-    })
-);
+const recordsPerWorker = await Promise.all(ranges.map(runWorker));
+const duplicates = [...totals]
+  .filter(([, count]) => count > 1)
+  .sort(([left], [right]) => left.localeCompare(right));
 
-console.log(`processing with ${workerCount} workers`);
+for (const [name, count] of duplicates) {
+  console.log(`${name} appears ${count} times`);
+}
 
-await pipeline(
-  createReadStream(database),
-  csvtojson(),
-  new Writable({
-    objectMode: true,
-    write(record, _encoding, callback) {
-      const parsedRecord = Buffer.isBuffer(record)
-        ? JSON.parse(record.toString())
-        : record;
-      const index = partitionFor(parsedRecord.Name, workerCount);
-      send(workers[index], { type: 'record', name: parsedRecord.Name }).then(
-        () => callback(),
-        callback
-      );
-    },
-  })
-);
-
-await Promise.all(workers.map(worker => send(worker, { type: 'end' })));
-await Promise.all(completion);
+const records = recordsPerWorker.reduce((total, count) => total + count, 0);
+const duration = (performance.now() - startedAt).toFixed(2);
+console.log(`processed ${records} records in ${duration}ms`);

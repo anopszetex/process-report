@@ -1,7 +1,7 @@
 {
   "name": "@anopszetex/process-report",
   "version": "1.0.0",
-  "description": "Single-pass duplicate detection for CSV datasets using Node.js child processes",
+  "description": "Parallel CSV range processing with Node.js child processes",
   "main": "index.js",
   "type": "module",
   "engines": {
@@ -9,8 +9,9 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "start:single": "WORKERS=1 node src/index.js",
     "test": "node --test",
-    "check": "node --check src/index.js && node --check src/backgroundTask.js"
+    "check": "node --check src/index.js && node --check src/backgroundTask.js && node --check src/ranges.js"
   },
   "keywords": [],
   "author": "",

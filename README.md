@@ -1,25 +1,39 @@
 # process-report
 
-Single-pass duplicate detection for CSV datasets using Node.js streams and child processes.
+Parallel CSV range processing with Node.js streams and child processes.
 
 ## Design
 
-The main process streams the CSV and hashes each record key to a stable worker partition. Records with the same key always reach the same worker. Each worker maintains its own `Set` and reports a duplicate only once.
+The parent process reads only the header and file metadata. It divides the data region into byte ranges, moves every boundary to the next newline, and assigns one exclusive range to each child process.
+
+Each child opens the CSV itself, streams and parses only its assigned range, and returns partial name counts. The parent merges those counts to detect duplicates that may occur in different ranges.
 
 This design provides:
 
-- **O(n)** file processing instead of rescanning the dataset per record;
-- bounded streaming input with IPC backpressure;
-- deterministic partitioning;
-- parallel ownership of the in-memory index;
-- at most eight workers to avoid excessive process overhead.
+- each data byte is read once by exactly one child process;
+- parsing distributed across independent Node.js processes;
+- ranges that never split a physical CSV record;
+- partial results sent in bounded IPC batches;
+- cross-range duplicate detection during the final merge;
+- at most eight workers by default.
 
-## Run
+This example assumes one CSV record per physical line. CSV files containing quoted multiline fields require a format-aware partitioning strategy.
+
+## Run and compare
 
 ```sh
 npm ci
 npm start
 ```
+
+Set the process count explicitly with `WORKERS`:
+
+```sh
+WORKERS=4 npm start
+npm run start:single
+```
+
+The command reports elapsed time so both modes can be compared in the same environment. Parallel processing is not automatically faster: for small files, process startup and IPC usually cost more than they save. The approach becomes useful when parsing or transforming sufficiently large ranges is the bottleneck.
 
 ## Test and validate
 
@@ -41,26 +55,40 @@ The included dataset intentionally contains duplicate Pokémon names and is used
 
 # process-report
 
-Detecção de registros duplicados em uma única passagem por datasets CSV, usando streams e processos filhos do Node.js.
+Processamento paralelo de intervalos de um CSV usando streams e processos filhos do Node.js.
 
 ## Arquitetura
 
-O processo principal lê o CSV como stream e aplica um hash à chave de cada registro. Registros com a mesma chave sempre são enviados para o mesmo worker. Cada worker mantém seu próprio `Set` e informa uma duplicata apenas uma vez.
+O processo principal lê apenas o cabeçalho e os metadados do arquivo. Ele divide a região de dados em intervalos de bytes, move cada limite até a próxima quebra de linha e atribui um intervalo exclusivo para cada processo filho.
+
+Cada filho abre o CSV diretamente, lê e interpreta somente seu intervalo e retorna contagens parciais dos nomes. O processo principal combina essas contagens para encontrar duplicatas que podem estar em intervalos diferentes.
 
 O desenho oferece:
 
-- processamento **O(n)**, sem reler o arquivo para cada registro;
-- entrada via stream e backpressure no IPC;
-- particionamento determinístico;
-- índice em memória distribuído entre processos;
-- limite de oito workers para evitar overhead excessivo.
+- cada byte da região de dados é lido uma única vez por apenas um processo;
+- parsing distribuído entre processos Node.js independentes;
+- intervalos que não cortam registros físicos;
+- resultados parciais enviados em lotes limitados via IPC;
+- detecção de duplicatas entre intervalos na consolidação final;
+- no máximo oito processos por padrão.
 
-## Execução
+O exemplo pressupõe um registro CSV por linha física. Arquivos com campos entre aspas contendo múltiplas linhas exigem uma estratégia de particionamento que compreenda esse formato.
+
+## Execução e comparação
 
 ```sh
 npm ci
 npm start
 ```
+
+Defina explicitamente a quantidade de processos com `WORKERS`:
+
+```sh
+WORKERS=4 npm start
+npm run start:single
+```
+
+O comando informa o tempo decorrido para comparar os modos no mesmo ambiente. Paralelismo não é automaticamente mais rápido: em arquivos pequenos, a criação dos processos e o IPC normalmente custam mais do que economizam. A abordagem se torna útil quando o parsing ou a transformação de intervalos grandes é o gargalo.
 
 ## Testes e validação
 
