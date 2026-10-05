@@ -44,8 +44,6 @@ npm run check
 
 # process-report
 
----
-
 An experiment with processing CSV records through multiple Node.js child processes.
 
 ## How it works
