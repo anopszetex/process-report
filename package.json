@@ -1,7 +1,7 @@
 {
   "name": "@anopszetex/process-report",
   "version": "1.0.0",
-  "description": "Parallel CSV range processing with Node.js child processes",
+  "description": "Experiment with CSV processing using Node.js child processes",
   "main": "index.js",
   "type": "module",
   "engines": {
@@ -9,9 +9,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "start:single": "WORKERS=1 node src/index.js",
-    "test": "node --test",
-    "check": "node --check src/index.js && node --check src/backgroundTask.js && node --check src/ranges.js"
+    "check": "node --check src/index.js && node --check src/backgroundTask.js"
   },
   "keywords": [],
   "author": "",

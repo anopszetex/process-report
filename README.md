@@ -1,48 +1,37 @@
 # process-report
 
-Parallel CSV range processing with Node.js streams and child processes.
+An experiment with processing CSV records through multiple Node.js child processes.
 
-## Design
+## How it works
 
-The parent process reads only the header and file metadata. It divides the data region into byte ranges, moves every boundary to the next newline, and assigns one exclusive range to each child process.
+The main process reads the Pokémon CSV as a stream and distributes records among 30 child processes using round-robin scheduling.
 
-Each child opens the CSV itself, streams and parses only its assigned range, and returns partial name counts. The parent merges those counts to detect duplicates that may occur in different ranges.
+For every record it receives, a child process opens the CSV, scans it as a stream, and reports whether the Pokémon name occurs more than once. The parent process consolidates the messages and prints each duplicated name once.
 
-This design provides:
+The project explores the use of:
 
-- each data byte is read once by exactly one child process;
-- parsing distributed across independent Node.js processes;
-- ranges that never split a physical CSV record;
-- partial results sent in bounded IPC batches;
-- cross-range duplicate detection during the final merge;
-- at most eight workers by default.
+- `node:child_process` and `fork`;
+- IPC between parent and child processes;
+- Node.js streams and pipelines;
+- round-robin work distribution;
+- CSV processing without loading the complete file into memory.
 
-This example assumes one CSV record per physical line. CSV files containing quoted multiline fields require a format-aware partitioning strategy.
+This is an experimental implementation. Multiple processes do not guarantee better performance, and this version intentionally favors a direct demonstration of child processes over an optimized duplicate-detection algorithm.
 
-## Run and compare
+## Run
 
 ```sh
 npm ci
 npm start
 ```
 
-Set the process count explicitly with `WORKERS`:
+Expected output includes the process count, duplicated names, and worker termination messages.
 
-```sh
-WORKERS=4 npm start
-npm run start:single
-```
-
-The command reports elapsed time so both modes can be compared in the same environment. Parallel processing is not automatically faster: for small files, process startup and IPC usually cost more than they save. The approach becomes useful when parsing or transforming sufficiently large ranges is the bottleneck.
-
-## Test and validate
+## Validate syntax
 
 ```sh
 npm run check
-npm test
 ```
-
-The included dataset intentionally contains duplicate Pokémon names and is used as a reproducible example.
 
 ## License
 
@@ -55,49 +44,38 @@ The included dataset intentionally contains duplicate Pokémon names and is used
 
 # process-report
 
-Processamento paralelo de intervalos de um CSV usando streams e processos filhos do Node.js.
+Experimento de processamento de registros CSV com múltiplos processos filhos do Node.js.
 
-## Arquitetura
+## Como funciona
 
-O processo principal lê apenas o cabeçalho e os metadados do arquivo. Ele divide a região de dados em intervalos de bytes, move cada limite até a próxima quebra de linha e atribui um intervalo exclusivo para cada processo filho.
+O processo principal lê o CSV de Pokémon como stream e distribui os registros entre 30 processos filhos usando round-robin.
 
-Cada filho abre o CSV diretamente, lê e interpreta somente seu intervalo e retorna contagens parciais dos nomes. O processo principal combina essas contagens para encontrar duplicatas que podem estar em intervalos diferentes.
+Para cada registro recebido, um processo filho abre o CSV, percorre o arquivo como stream e informa se o nome do Pokémon aparece mais de uma vez. O processo principal consolida as mensagens e exibe cada nome duplicado uma única vez.
 
-O desenho oferece:
+O projeto explora o uso de:
 
-- cada byte da região de dados é lido uma única vez por apenas um processo;
-- parsing distribuído entre processos Node.js independentes;
-- intervalos que não cortam registros físicos;
-- resultados parciais enviados em lotes limitados via IPC;
-- detecção de duplicatas entre intervalos na consolidação final;
-- no máximo oito processos por padrão.
+- `node:child_process` e `fork`;
+- IPC entre o processo principal e os filhos;
+- streams e pipelines do Node.js;
+- distribuição de trabalho com round-robin;
+- processamento de CSV sem carregar o arquivo inteiro na memória.
 
-O exemplo pressupõe um registro CSV por linha física. Arquivos com campos entre aspas contendo múltiplas linhas exigem uma estratégia de particionamento que compreenda esse formato.
+Esta é uma implementação experimental. Usar vários processos não garante maior desempenho, e esta versão favorece uma demonstração direta de child processes em vez de um algoritmo otimizado para detecção de duplicatas.
 
-## Execução e comparação
+## Execução
 
 ```sh
 npm ci
 npm start
 ```
 
-Defina explicitamente a quantidade de processos com `WORKERS`:
+A saída esperada contém a quantidade de processos, os nomes duplicados e as mensagens de encerramento dos workers.
 
-```sh
-WORKERS=4 npm start
-npm run start:single
-```
-
-O comando informa o tempo decorrido para comparar os modos no mesmo ambiente. Paralelismo não é automaticamente mais rápido: em arquivos pequenos, a criação dos processos e o IPC normalmente custam mais do que economizam. A abordagem se torna útil quando o parsing ou a transformação de intervalos grandes é o gargalo.
-
-## Testes e validação
+## Validar sintaxe
 
 ```sh
 npm run check
-npm test
 ```
-
-O dataset incluído contém nomes de Pokémon duplicados intencionalmente para tornar o exemplo reproduzível.
 
 ## Licença
 

@@ -1,79 +1,73 @@
+// eslint-disable-next-line node/no-unpublished-import
+import csvtojson from 'csvtojson';
 import { fork } from 'node:child_process';
-import { availableParallelism } from 'node:os';
+import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { performance } from 'node:perf_hooks';
+import { Writable } from 'stream';
+import { pipeline } from 'stream/promises';
 
-import { createCsvRanges } from './ranges.js';
+(async () => {
+  const __dirname = fileURLToPath(import.meta.url);
 
-const directory = path.dirname(fileURLToPath(import.meta.url));
-const database = path.resolve('database/All_Pokemon.csv');
-const workerFile = path.join(directory, 'backgroundTask.js');
-const defaultWorkerCount = Math.min(availableParallelism(), 8);
-const requestedWorkerCount = Number(process.env.WORKERS ?? defaultWorkerCount);
+  const database = path.resolve('./database/All_Pokemon.csv');
+  const backgroundTaskFile = path.join(__dirname, '../backgroundTask.js');
 
-if (!Number.isInteger(requestedWorkerCount) || requestedWorkerCount < 1) {
-  throw new Error('WORKERS must be a positive integer');
-}
+  const ERROR_EXIT_CODE = 1;
+  const PROCESS_COUNT = 30;
 
-const { header, ranges } = await createCsvRanges(
-  database,
-  requestedWorkerCount
-);
-const totals = new Map();
-const startedAt = performance.now();
+  const replications = [];
+  const processes = new Map();
 
-function merge(entries) {
-  for (const [name, count] of entries) {
-    totals.set(name, (totals.get(name) ?? 0) + count);
+  for (let index = 0; index < PROCESS_COUNT; index++) {
+    const child = fork(backgroundTaskFile, [database]);
+
+    child.on('exit', () => {
+      console.log(`process ${child.pid} exited`);
+      processes.delete(child.pid);
+    });
+
+    child.on('error', error => {
+      console.log(`process ${child.pid} has en error ${error}`);
+      // eslint-disable-next-line no-process-exit
+      process.exit(ERROR_EXIT_CODE);
+    });
+
+    child.on('message', msg => {
+      if (replications.includes(msg)) {
+        return;
+      }
+
+      console.log(`${msg} is replicated`);
+      replications.push(msg);
+    });
+
+    processes.set(child.pid, child);
   }
-}
 
-function runWorker(range) {
-  return new Promise((resolve, reject) => {
-    const worker = fork(workerFile, [
-      database,
-      String(range.start),
-      String(range.endExclusive),
-      Buffer.from(header).toString('base64'),
-    ]);
-    let completed = false;
-
-    worker.on('message', message => {
-      if (message.type === 'counts') {
-        merge(message.entries);
+  function roundRoubin(array, index = 0) {
+    return function () {
+      if (index >= array.length) {
+        index = 0;
       }
 
-      if (message.type === 'error') {
-        reject(new Error(message.error));
-      }
+      return array[index++];
+    };
+  }
 
-      if (message.type === 'done') {
-        completed = true;
-        resolve(message.records);
-      }
-    });
+  const getProcess = roundRoubin([...processes.values()]);
 
-    worker.once('error', reject);
-    worker.once('exit', code => {
-      if (!completed && code !== 0) {
-        reject(new Error(`Worker exited with code ${code}`));
-      }
-    });
-  });
-}
+  console.log(`starting with ${processes.size} processes`);
 
-console.log(`reading ${ranges.length} file ranges in parallel`);
-
-const recordsPerWorker = await Promise.all(ranges.map(runWorker));
-const duplicates = [...totals]
-  .filter(([, count]) => count > 1)
-  .sort(([left], [right]) => left.localeCompare(right));
-
-for (const [name, count] of duplicates) {
-  console.log(`${name} appears ${count} times`);
-}
-
-const records = recordsPerWorker.reduce((total, count) => total + count, 0);
-const duration = (performance.now() - startedAt).toFixed(2);
-console.log(`processed ${records} records in ${duration}ms`);
+  await pipeline(
+    createReadStream(database),
+    csvtojson(),
+    Writable({
+      write(chunk, encoding, callback) {
+        const chosenProcess = getProcess();
+        chosenProcess.send(JSON.parse(chunk));
+        callback();
+      },
+    })
+  );
+})();
